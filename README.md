@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 🏠 짭방 (jjab-bang)
 
 > 대학가 스마트 자취방 안심 정보 공유 플랫폼
@@ -80,3 +81,6 @@ jjab-bang/
         ├── api/
         └── context/
 ```
+=======
+# jjab-bang
+>>>>>>> 5dfc0282630ffb884ce9ce598b818fcbc76b5c9a
