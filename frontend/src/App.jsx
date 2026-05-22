@@ -9,6 +9,7 @@ import Admin from './pages/Admin'
 import PropertyDetail from './pages/PropertyDetail'
 import VerifyEmail from './pages/VerifyEmail'
 import Chart from './pages/Chart'
+import JeonseCalc from './pages/JeonseCalc'
 
 const PrivateRoute = ({ children }) => {
   const { user } = useAuth()
@@ -32,6 +33,7 @@ function App() {
       <Route path="/mypage" element={<PrivateRoute><MyPage /></PrivateRoute>} />
       <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
       <Route path="/chart" element={<Chart />} />
+      <Route path="/jeonse" element={<JeonseCalc />} />
     </Routes>
   )
 }
