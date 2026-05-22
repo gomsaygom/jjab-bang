@@ -115,6 +115,37 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// 인증 상태 확인
+router.get('/cert-status', authMiddleware, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT status FROM certifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+      [req.user.id]
+    );
+    res.json({ status: rows.length > 0 ? rows[0].status : null });
+  } catch (err) {
+    res.status(500).json({ message: '서버 오류' });
+  }
+});
+
+// 내 리뷰 목록
+router.get('/my', authMiddleware, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT r.*, p.name as property_name
+       FROM reviews r
+       LEFT JOIN properties p ON r.property_id = p.id
+       WHERE r.user_id = ?
+       ORDER BY r.created_at DESC`,
+      [req.user.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ message: '서버 오류' });
+  }
+});
+
+
 // 리뷰 신고
 router.post('/:id/report', authMiddleware, async (req, res) => {
   const { reason } = req.body;

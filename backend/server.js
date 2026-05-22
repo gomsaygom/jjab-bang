@@ -20,6 +20,7 @@ app.use('/api/properties', require('./src/routes/property'));
 app.use('/api/reviews', require('./src/routes/review'));
 app.use('/api/admin', require('./src/routes/admin'));
 app.use('/api/public-data', require('./src/routes/publicData'));
+app.use('/api/favorites', require('./src/routes/favorites'));
 
 // 헬스체크
 app.get('/', (req, res) => res.json({ message: '짭방 API 서버 정상 동작 중' }));

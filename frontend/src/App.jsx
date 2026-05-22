@@ -8,6 +8,7 @@ import MyPage from './pages/MyPage'
 import Admin from './pages/Admin'
 import PropertyDetail from './pages/PropertyDetail'
 import VerifyEmail from './pages/VerifyEmail'
+import Chart from './pages/Chart'
 
 const PrivateRoute = ({ children }) => {
   const { user } = useAuth()
@@ -30,6 +31,7 @@ function App() {
       <Route path="/property/:id" element={<PropertyDetail />} />
       <Route path="/mypage" element={<PrivateRoute><MyPage /></PrivateRoute>} />
       <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+      <Route path="/chart" element={<Chart />} />
     </Routes>
   )
 }
