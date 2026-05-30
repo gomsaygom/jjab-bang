@@ -1,11 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import Header from '../components/Header'
 
 export default function JeonseCalc() {
-  const navigate = useNavigate()
-  const { user, logout } = useAuth()
-
   const [salePrice,   setSalePrice]   = useState('')
   const [jeonsePrice, setJeonsePrice] = useState('')
   const [result,      setResult]      = useState(null)
@@ -13,10 +9,7 @@ export default function JeonseCalc() {
   const calculate = () => {
     const sale   = parseFloat(salePrice)
     const jeonse = parseFloat(jeonsePrice)
-    if (!sale || !jeonse || sale <= 0) {
-      alert('올바른 금액을 입력해주세요.')
-      return
-    }
+    if (!sale || !jeonse || sale <= 0) { alert('올바른 금액을 입력해주세요.'); return }
     const rate = (jeonse / sale) * 100
     let risk, color, desc
     if (rate >= 80) {
@@ -43,49 +36,25 @@ export default function JeonseCalc() {
 
   return (
     <div style={{ minHeight:'100vh', background:'#f8fafc' }}>
-      {/* 헤더 */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 24px', background:'#fff', borderBottom:'1px solid #e2e8f0' }}>
-        <h2 style={{ color:'#4F8EF7', cursor:'pointer', margin:0 }} onClick={() => navigate('/')}>🏠 짭방</h2>
-        <div style={{ display:'flex', gap:12, alignItems:'center' }}>
-          {user ? (
-            <>
-              <span style={{ fontSize:14, color:'#666' }}>{user.nickname}님</span>
-              <button onClick={() => navigate('/mypage')} style={{ padding:'6px 12px', cursor:'pointer', borderRadius:6, border:'1px solid #ddd' }}>마이페이지</button>
-              <button onClick={logout} style={{ padding:'6px 12px', cursor:'pointer', borderRadius:6, border:'1px solid #ddd' }}>로그아웃</button>
-            </>
-          ) : (
-            <button onClick={() => navigate('/login')} style={{ padding:'6px 12px', background:'#4F8EF7', color:'#fff', border:'none', borderRadius:6, cursor:'pointer' }}>로그인</button>
-          )}
-        </div>
-      </div>
-
-      <div style={{ maxWidth:720, margin:'0 auto', padding:'32px 24px' }}>
+      <Header />
+      <div style={{ maxWidth:720, margin:'0 auto', padding:'32px 16px' }}>
         <h2 style={{ marginBottom:8 }}>🛡️ 전세가율 계산기</h2>
         <p style={{ color:'#64748b', marginBottom:28, fontSize:14 }}>매매가 대비 전세가 비율을 계산하여 전세사기 위험도를 확인합니다.</p>
 
-        {/* 계산기 */}
-        <div style={{ background:'#fff', borderRadius:16, padding:'28px', border:'1px solid #e2e8f0', marginBottom:24 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:20 }}>
+        <div style={{ background:'#fff', borderRadius:16, padding:'24px', border:'1px solid #e2e8f0', marginBottom:24 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:20 }}>
             <div>
               <label style={{ display:'block', fontSize:13, color:'#64748b', marginBottom:6, fontWeight:600 }}>매매가 (만원)</label>
-              <input
-                type="number"
-                value={salePrice}
-                onChange={e => setSalePrice(e.target.value)}
+              <input type="number" value={salePrice} onChange={e => setSalePrice(e.target.value)}
                 placeholder="예: 30000"
-                style={{ width:'100%', padding:'12px', borderRadius:8, border:'1px solid #e2e8f0', fontSize:15, boxSizing:'border-box' }}
-              />
+                style={{ width:'100%', padding:'12px', borderRadius:8, border:'1px solid #e2e8f0', fontSize:15, boxSizing:'border-box' }}/>
               {salePrice && <p style={{ margin:'4px 0 0', fontSize:12, color:'#94a3b8' }}>{(salePrice/10000).toFixed(2)}억원</p>}
             </div>
             <div>
               <label style={{ display:'block', fontSize:13, color:'#64748b', marginBottom:6, fontWeight:600 }}>전세가 (만원)</label>
-              <input
-                type="number"
-                value={jeonsePrice}
-                onChange={e => setJeonsePrice(e.target.value)}
+              <input type="number" value={jeonsePrice} onChange={e => setJeonsePrice(e.target.value)}
                 placeholder="예: 22000"
-                style={{ width:'100%', padding:'12px', borderRadius:8, border:'1px solid #e2e8f0', fontSize:15, boxSizing:'border-box' }}
-              />
+                style={{ width:'100%', padding:'12px', borderRadius:8, border:'1px solid #e2e8f0', fontSize:15, boxSizing:'border-box' }}/>
               {jeonsePrice && <p style={{ margin:'4px 0 0', fontSize:12, color:'#94a3b8' }}>{(jeonsePrice/10000).toFixed(2)}억원</p>}
             </div>
           </div>
@@ -95,38 +64,27 @@ export default function JeonseCalc() {
           </button>
         </div>
 
-        {/* 결과 */}
         {result && (
-          <div style={{ background:'#fff', borderRadius:16, padding:'28px', border:`2px solid ${result.color}`, marginBottom:24 }}>
+          <div style={{ background:'#fff', borderRadius:16, padding:'24px', border:`2px solid ${result.color}`, marginBottom:24 }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
               <h3 style={{ margin:0, fontSize:18 }}>계산 결과</h3>
-              <span style={{ padding:'6px 18px', borderRadius:20, fontWeight:700, fontSize:15, background: result.color, color:'#fff' }}>
-                {result.risk}
-              </span>
+              <span style={{ padding:'6px 18px', borderRadius:20, fontWeight:700, fontSize:15, background:result.color, color:'#fff' }}>{result.risk}</span>
             </div>
-
-            {/* 게이지 */}
             <div style={{ marginBottom:16 }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
                 <span style={{ fontSize:13, color:'#64748b' }}>전세가율</span>
-                <span style={{ fontSize:20, fontWeight:700, color: result.color }}>{result.rate}%</span>
+                <span style={{ fontSize:20, fontWeight:700, color:result.color }}>{result.rate}%</span>
               </div>
               <div style={{ background:'#f1f5f9', borderRadius:8, height:14, overflow:'hidden' }}>
-                <div style={{
-                  height:'100%', borderRadius:8, transition:'width 0.5s',
-                  width: `${Math.min(result.rate, 100)}%`,
-                  background: result.color
-                }} />
+                <div style={{ height:'100%', borderRadius:8, transition:'width 0.5s', width:`${Math.min(result.rate,100)}%`, background:result.color }}/>
               </div>
               <div style={{ display:'flex', justifyContent:'space-between', marginTop:4, fontSize:11, color:'#94a3b8' }}>
                 <span>0%</span><span>60% (주의)</span><span>80% (위험)</span><span>100%</span>
               </div>
             </div>
-
-            <div style={{ background: result.color+'15', borderRadius:10, padding:'14px', marginBottom:12 }}>
-              <p style={{ margin:0, fontSize:14, color: result.color, fontWeight:600 }}>{result.desc}</p>
+            <div style={{ background:result.color+'15', borderRadius:10, padding:'14px', marginBottom:12 }}>
+              <p style={{ margin:0, fontSize:14, color:result.color, fontWeight:600 }}>{result.desc}</p>
             </div>
-
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               <div style={{ background:'#f8fafc', borderRadius:10, padding:'14px', textAlign:'center' }}>
                 <p style={{ margin:'0 0 4px', fontSize:12, color:'#64748b' }}>매매가</p>
@@ -140,8 +98,7 @@ export default function JeonseCalc() {
           </div>
         )}
 
-        {/* 전세사기 예방 체크리스트 */}
-        <div style={{ background:'#fff', borderRadius:16, padding:'28px', border:'1px solid #e2e8f0' }}>
+        <div style={{ background:'#fff', borderRadius:16, padding:'24px', border:'1px solid #e2e8f0' }}>
           <h3 style={{ margin:'0 0 16px', fontSize:16 }}>📋 전세사기 예방 체크리스트</h3>
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
             {checklist.map((item, i) => (

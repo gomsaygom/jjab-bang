@@ -5,15 +5,15 @@ const { authMiddleware } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 
-const storage = multer.diskStorage({
+const certStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
     cb(null, `cert_${Date.now()}${ext}`);
   },
 });
-const upload = multer({
-  storage,
+const certUpload = multer({
+  storage: certStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['.jpg', '.jpeg', '.png', '.pdf'];
@@ -23,8 +23,56 @@ const upload = multer({
   },
 });
 
+const reviewStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'uploads/'),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `review_${Date.now()}${ext}`);
+  },
+});
+const reviewUpload = multer({
+  storage: reviewStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.jpg', '.jpeg', '.png'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) cb(null, true);
+    else cb(new Error('jpg, png 파일만 업로드 가능합니다.'));
+  },
+});
+
+// 인증 상태 확인 (/:id 보다 먼저!)
+router.get('/cert-status', authMiddleware, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT status FROM certifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+      [req.user.id]
+    );
+    res.json({ status: rows.length > 0 ? rows[0].status : null });
+  } catch (err) {
+    res.status(500).json({ message: '서버 오류' });
+  }
+});
+
+// 내 리뷰 목록 (/:id 보다 먼저!)
+router.get('/my', authMiddleware, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT r.*, p.name as property_name
+       FROM reviews r
+       LEFT JOIN properties p ON r.property_id = p.id
+       WHERE r.user_id = ?
+       ORDER BY r.created_at DESC`,
+      [req.user.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ message: '서버 오류' });
+  }
+});
+
 // 인증 파일 업로드
-router.post('/certify', authMiddleware, upload.single('cert_file'), async (req, res) => {
+router.post('/certify', authMiddleware, certUpload.single('cert_file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ message: '파일을 업로드해주세요.' });
   try {
     await pool.query(
@@ -42,7 +90,7 @@ router.get('/property/:propertyId', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT r.id, r.noise, r.sunlight, r.water_pressure, r.management_fee, r.environment,
-              r.content, r.created_at
+              r.content, r.image_path, r.created_at
        FROM reviews r
        WHERE r.property_id = ? AND r.is_hidden = 0
        ORDER BY r.created_at DESC`,
@@ -55,8 +103,9 @@ router.get('/property/:propertyId', async (req, res) => {
 });
 
 // 리뷰 작성
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, reviewUpload.single('review_image'), async (req, res) => {
   const { property_id, noise, sunlight, water_pressure, management_fee, environment, content } = req.body;
+  const image_path = req.file ? req.file.filename : null;
   try {
     const [cert] = await pool.query(
       'SELECT id FROM certifications WHERE user_id = ? AND status = ?',
@@ -73,9 +122,9 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(409).json({ message: '이미 리뷰를 작성한 매물입니다.' });
 
     await pool.query(
-      `INSERT INTO reviews (user_id, property_id, noise, sunlight, water_pressure, management_fee, environment, content)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.user.id, property_id, noise, sunlight, water_pressure, management_fee, environment, content]
+      `INSERT INTO reviews (user_id, property_id, noise, sunlight, water_pressure, management_fee, environment, content, image_path)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.user.id, property_id, noise, sunlight, water_pressure, management_fee, environment, content, image_path]
     );
     res.status(201).json({ message: '리뷰가 등록되었습니다.' });
   } catch (err) {
@@ -115,37 +164,6 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// 인증 상태 확인
-router.get('/cert-status', authMiddleware, async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      'SELECT status FROM certifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
-      [req.user.id]
-    );
-    res.json({ status: rows.length > 0 ? rows[0].status : null });
-  } catch (err) {
-    res.status(500).json({ message: '서버 오류' });
-  }
-});
-
-// 내 리뷰 목록
-router.get('/my', authMiddleware, async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      `SELECT r.*, p.name as property_name
-       FROM reviews r
-       LEFT JOIN properties p ON r.property_id = p.id
-       WHERE r.user_id = ?
-       ORDER BY r.created_at DESC`,
-      [req.user.id]
-    );
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ message: '서버 오류' });
-  }
-});
-
-
 // 리뷰 신고
 router.post('/:id/report', authMiddleware, async (req, res) => {
   const { reason } = req.body;
@@ -154,12 +172,10 @@ router.post('/:id/report', authMiddleware, async (req, res) => {
       'INSERT INTO reports (user_id, review_id, reason) VALUES (?, ?, ?)',
       [req.user.id, req.params.id, reason]
     );
-
     const [count] = await pool.query('SELECT COUNT(*) as cnt FROM reports WHERE review_id = ?', [req.params.id]);
     if (count[0].cnt >= 5) {
       await pool.query('UPDATE reviews SET is_hidden = 1 WHERE id = ?', [req.params.id]);
     }
-
     res.json({ message: '신고가 접수되었습니다.' });
   } catch (err) {
     res.status(500).json({ message: '서버 오류' });

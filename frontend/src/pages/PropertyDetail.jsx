@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/axios'
+import Header from '../components/Header'
 
 const STARS = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
 
@@ -10,22 +11,22 @@ export default function PropertyDetail() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
 
-  const [property,    setProperty]    = useState(null)
-  const [reviews,     setReviews]     = useState([])
-  const [isFavorite,  setIsFavorite]  = useState(false)
-  const [showForm,    setShowForm]    = useState(false)
-  const [certStatus,  setCertStatus]  = useState(null) // null | 'pending' | 'approved'
-  const [loading,     setLoading]     = useState(true)
-  const [submitting,  setSubmitting]  = useState(false)
+  const [property,   setProperty]   = useState(null)
+  const [reviews,    setReviews]    = useState([])
+  const [isFavorite, setIsFavorite] = useState(false)
+  const [showForm,   setShowForm]   = useState(false)
+  const [certStatus, setCertStatus] = useState(null)
+  const [loading,    setLoading]    = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [certFile,   setCertFile]   = useState(null)
+  const [certUploading, setCertUploading] = useState(false)
+  const [reviewImage, setReviewImage] = useState(null)
 
   const [form, setForm] = useState({
-    noise: 3, sunlight: 3, water_pressure: 3,
-    management_fee: 3, environment: 3, content: ''
+    noise:3, sunlight:3, water_pressure:3, management_fee:3, environment:3, content:''
   })
 
-  useEffect(() => {
-    fetchAll()
-  }, [id])
+  useEffect(() => { fetchAll() }, [id])
 
   const fetchAll = async () => {
     setLoading(true)
@@ -36,7 +37,6 @@ export default function PropertyDetail() {
       ])
       setProperty(propRes.data)
       setReviews(revRes.data)
-
       if (user) {
         const [favRes, certRes] = await Promise.all([
           api.get(`/favorites/check/${id}`),
@@ -45,40 +45,63 @@ export default function PropertyDetail() {
         setIsFavorite(favRes.data.isFavorite)
         setCertStatus(certRes.data.status)
       }
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setLoading(false)
-    }
+    } catch (e) { console.error(e) }
+    finally { setLoading(false) }
   }
 
   const toggleFavorite = async () => {
     if (!user) { navigate('/login'); return }
     try {
-      if (isFavorite) {
-        await api.delete(`/favorites/${id}`)
-      } else {
-        await api.post(`/favorites/${id}`)
-      }
+      if (isFavorite) await api.delete(`/favorites/${id}`)
+      else await api.post(`/favorites/${id}`)
       setIsFavorite(!isFavorite)
     } catch (e) { console.error(e) }
+  }
+
+  const submitCert = async () => {
+    if (!certFile) return alert('파일을 선택해주세요.')
+    setCertUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('cert_file', certFile)
+      await api.post('/reviews/certify', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      alert('인증 서류가 제출되었습니다. 관리자 검토 후 리뷰 작성이 가능합니다.')
+      setCertFile(null)
+      const res = await api.get('/reviews/cert-status')
+      setCertStatus(res.data.status)
+    } catch (e) {
+      alert(e.response?.data?.message || '업로드 실패')
+    } finally { setCertUploading(false) }
   }
 
   const submitReview = async () => {
     if (!user) { navigate('/login'); return }
     setSubmitting(true)
     try {
-      await api.post('/reviews', { property_id: id, ...form })
+      const formData = new FormData()
+      formData.append('property_id', id)
+      formData.append('noise', form.noise)
+      formData.append('sunlight', form.sunlight)
+      formData.append('water_pressure', form.water_pressure)
+      formData.append('management_fee', form.management_fee)
+      formData.append('environment', form.environment)
+      formData.append('content', form.content)
+      if (reviewImage) formData.append('review_image', reviewImage)
+
+      await api.post('/reviews', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
       setShowForm(false)
       setForm({ noise:3, sunlight:3, water_pressure:3, management_fee:3, environment:3, content:'' })
+      setReviewImage(null)
       const res = await api.get(`/reviews/property/${id}`)
       setReviews(res.data)
       alert('리뷰가 등록되었습니다!')
     } catch (e) {
       alert(e.response?.data?.message || '리뷰 등록 실패')
-    } finally {
-      setSubmitting(false)
-    }
+    } finally { setSubmitting(false) }
   }
 
   const reportReview = async (reviewId) => {
@@ -87,9 +110,7 @@ export default function PropertyDetail() {
     try {
       await api.post(`/reviews/${reviewId}/report`, { reason })
       alert('신고가 접수되었습니다.')
-    } catch (e) {
-      alert(e.response?.data?.message || '신고 실패')
-    }
+    } catch (e) { alert(e.response?.data?.message || '신고 실패') }
   }
 
   const avgScore = (r) => {
@@ -97,29 +118,17 @@ export default function PropertyDetail() {
     return vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : '-'
   }
 
+  const IMG_BASE = 'http://localhost:8080/uploads/'
+
   if (loading) return <div style={{ textAlign:'center', padding:'80px', color:'#94a3b8' }}>로딩 중...</div>
   if (!property) return <div style={{ textAlign:'center', padding:'80px', color:'#94a3b8' }}>매물을 찾을 수 없습니다.</div>
 
   return (
     <div style={{ minHeight:'100vh', background:'#f8fafc' }}>
       {/* 헤더 */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 24px', background:'#fff', borderBottom:'1px solid #e2e8f0' }}>
-        <h2 style={{ color:'#4F8EF7', cursor:'pointer', margin:0 }} onClick={() => navigate('/')}>🏠 짭방</h2>
-        <div style={{ display:'flex', gap:12, alignItems:'center' }}>
-          {user ? (
-            <>
-              <span style={{ fontSize:14, color:'#666' }}>{user.nickname}님</span>
-              <button onClick={() => navigate('/mypage')} style={{ padding:'6px 12px', cursor:'pointer', borderRadius:6, border:'1px solid #ddd' }}>마이페이지</button>
-              <button onClick={logout} style={{ padding:'6px 12px', cursor:'pointer', borderRadius:6, border:'1px solid #ddd' }}>로그아웃</button>
-            </>
-          ) : (
-            <button onClick={() => navigate('/login')} style={{ padding:'6px 12px', background:'#4F8EF7', color:'#fff', border:'none', borderRadius:6, cursor:'pointer' }}>로그인</button>
-          )}
-        </div>
-      </div>
+      <Header />
 
       <div style={{ maxWidth:800, margin:'0 auto', padding:'32px 24px' }}>
-        {/* 뒤로가기 */}
         <button onClick={() => navigate(-1)} style={{ marginBottom:16, background:'none', border:'none', color:'#64748b', cursor:'pointer', fontSize:14 }}>
           ← 뒤로가기
         </button>
@@ -129,9 +138,7 @@ export default function PropertyDetail() {
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
             <div>
               <h2 style={{ margin:'0 0 8px', fontSize:22 }}>{property.name}</h2>
-              <p style={{ margin:'0 0 4px', color:'#64748b', fontSize:14 }}>
-                📍 {property.district} · {property.type}
-              </p>
+              <p style={{ margin:'0 0 4px', color:'#64748b', fontSize:14 }}>📍 {property.district} · {property.type}</p>
               <div style={{ display:'flex', gap:8, marginTop:10 }}>
                 <span style={{ padding:'4px 12px', borderRadius:20, fontSize:12, background:'#e0f2fe', color:'#0284c7' }}>{property.deal_type}</span>
                 {property.floor && <span style={{ padding:'4px 12px', borderRadius:20, fontSize:12, background:'#f1f5f9', color:'#475569' }}>{property.floor}층</span>}
@@ -140,10 +147,10 @@ export default function PropertyDetail() {
             </div>
             <div style={{ textAlign:'right' }}>
               <p style={{ margin:'0 0 8px', fontSize:24, fontWeight:700, color:'#4F8EF7' }}>
-                {property.price ? (property.price / 10000).toFixed(1) + '억' : '-'}
+                {property.price ? (property.price/10000).toFixed(1)+'억' : '-'}
               </p>
               <button onClick={toggleFavorite}
-                style={{ padding:'8px 20px', borderRadius:8, border:'1px solid #e2e8f0', cursor:'pointer', fontSize:18, background: isFavorite ? '#fee2e2' : '#fff' }}>
+                style={{ padding:'8px 20px', borderRadius:8, border:'1px solid #e2e8f0', cursor:'pointer', fontSize:18, background: isFavorite?'#fee2e2':'#fff' }}>
                 {isFavorite ? '❤️' : '🤍'} {isFavorite ? '저장됨' : '즐겨찾기'}
               </button>
             </div>
@@ -165,15 +172,25 @@ export default function PropertyDetail() {
         {showForm && (
           <div style={{ background:'#fff', borderRadius:16, padding:'24px', border:'1px solid #e2e8f0', marginBottom:20 }}>
             {certStatus !== 'approved' ? (
-              <div style={{ textAlign:'center', padding:'20px' }}>
+              <div>
                 <p style={{ color:'#64748b', marginBottom:12 }}>
-                  {certStatus === 'pending' ? '⏳ 계약서 인증 검토 중입니다.' : '📄 계약서/영수증 인증 후 리뷰 작성이 가능합니다.'}
+                  {certStatus === 'pending' ? '⏳ 계약서 인증 검토 중입니다.' : '📄 계약서/영수증을 업로드하여 인증받으세요.'}
                 </p>
                 {!certStatus && (
-                  <button onClick={() => navigate('/mypage')}
-                    style={{ padding:'8px 20px', background:'#4F8EF7', color:'#fff', border:'none', borderRadius:8, cursor:'pointer' }}>
-                    인증 서류 제출하기
-                  </button>
+                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                    <label style={{ fontSize:13, color:'#374151', fontWeight:600 }}>계약서 / 영수증 업로드</label>
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.pdf"
+                      onChange={e => setCertFile(e.target.files[0])}
+                      style={{ fontSize:13 }}
+                    />
+                    {certFile && <p style={{ fontSize:12, color:'#64748b', margin:0 }}>선택: {certFile.name}</p>}
+                    <button onClick={submitCert} disabled={certUploading}
+                      style={{ padding:'10px', background:'#4F8EF7', color:'#fff', border:'none', borderRadius:8, cursor:'pointer', fontWeight:700 }}>
+                      {certUploading ? '업로드 중...' : '인증 서류 제출'}
+                    </button>
+                  </div>
                 )}
               </div>
             ) : (
@@ -188,9 +205,7 @@ export default function PropertyDetail() {
                     <div style={{ display:'flex', gap:4 }}>
                       {[1,2,3,4,5].map(n => (
                         <button key={n} onClick={() => setForm(p => ({...p,[key]:n}))}
-                          style={{ fontSize:20, background:'none', border:'none', cursor:'pointer', color: form[key] >= n ? '#f59e0b' : '#d1d5db' }}>
-                          ★
-                        </button>
+                          style={{ fontSize:20, background:'none', border:'none', cursor:'pointer', color: form[key]>=n?'#f59e0b':'#d1d5db' }}>★</button>
                       ))}
                     </div>
                     <span style={{ fontSize:13, color:'#94a3b8' }}>{form[key]}점</span>
@@ -198,11 +213,24 @@ export default function PropertyDetail() {
                 ))}
                 <textarea
                   value={form.content}
-                  onChange={e => setForm(p => ({...p, content: e.target.value}))}
+                  onChange={e => setForm(p => ({...p, content:e.target.value}))}
                   placeholder="자유롭게 후기를 작성해주세요."
                   rows={4}
                   style={{ width:'100%', padding:'12px', borderRadius:8, border:'1px solid #e2e8f0', fontSize:14, resize:'vertical', boxSizing:'border-box', marginTop:8 }}
                 />
+                {/* 리뷰 이미지 첨부 */}
+                <div style={{ marginTop:12 }}>
+                  <label style={{ fontSize:13, color:'#374151', fontWeight:600 }}>사진 첨부 (선택)</label>
+                  <input
+                    type="file"
+                    accept=".jpg,.jpeg,.png"
+                    onChange={e => setReviewImage(e.target.files[0])}
+                    style={{ display:'block', marginTop:6, fontSize:13 }}
+                  />
+                  {reviewImage && (
+                    <p style={{ fontSize:12, color:'#64748b', margin:'4px 0 0' }}>선택: {reviewImage.name}</p>
+                  )}
+                </div>
                 <button onClick={submitReview} disabled={submitting}
                   style={{ marginTop:12, width:'100%', padding:'12px', background:'#4F8EF7', color:'#fff', border:'none', borderRadius:8, cursor:'pointer', fontSize:15, fontWeight:700 }}>
                   {submitting ? '등록 중...' : '리뷰 등록'}
@@ -251,6 +279,10 @@ export default function PropertyDetail() {
                 </div>
                 {r.content && (
                   <p style={{ margin:0, fontSize:14, color:'#374151', background:'#f8fafc', borderRadius:8, padding:'10px' }}>{r.content}</p>
+                )}
+                {r.image_path && (
+                  <img src={IMG_BASE + r.image_path} alt="리뷰 이미지"
+                    style={{ marginTop:10, maxWidth:'100%', borderRadius:8, maxHeight:300, objectFit:'cover' }} />
                 )}
               </div>
             ))}
