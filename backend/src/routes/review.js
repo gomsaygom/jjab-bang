@@ -41,20 +41,25 @@ const reviewUpload = multer({
   },
 });
 
-// 인증 상태 확인 (/:id 보다 먼저!)
+// 인증 상태 확인 (property_id 기준)
 router.get('/cert-status', authMiddleware, async (req, res) => {
+  const { property_id } = req.query;
   try {
-    const [rows] = await pool.query(
-      'SELECT status FROM certifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
-      [req.user.id]
-    );
+    let query = 'SELECT status FROM certifications WHERE user_id = ?';
+    const params = [req.user.id];
+    if (property_id) {
+      query += ' AND property_id = ?';
+      params.push(property_id);
+    }
+    query += ' ORDER BY created_at DESC LIMIT 1';
+    const [rows] = await pool.query(query, params);
     res.json({ status: rows.length > 0 ? rows[0].status : null });
   } catch (err) {
     res.status(500).json({ message: '서버 오류' });
   }
 });
 
-// 내 리뷰 목록 (/:id 보다 먼저!)
+// 내 리뷰 목록
 router.get('/my', authMiddleware, async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -71,13 +76,27 @@ router.get('/my', authMiddleware, async (req, res) => {
   }
 });
 
-// 인증 파일 업로드
+// 인증 파일 업로드 (property_id 포함)
 router.post('/certify', authMiddleware, certUpload.single('cert_file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ message: '파일을 업로드해주세요.' });
+  const { property_id } = req.body;
+  if (!property_id) return res.status(400).json({ message: '매물 정보가 필요합니다.' });
   try {
+    // 이미 해당 매물에 인증 제출했는지 확인
+    const [exist] = await pool.query(
+      'SELECT id, status FROM certifications WHERE user_id = ? AND property_id = ? ORDER BY created_at DESC LIMIT 1',
+      [req.user.id, property_id]
+    );
+    if (exist.length > 0 && exist[0].status === 'pending') {
+      return res.status(409).json({ message: '이미 인증 서류를 제출했습니다. 검토 중입니다.' });
+    }
+    if (exist.length > 0 && exist[0].status === 'approved') {
+      return res.status(409).json({ message: '이미 인증된 매물입니다.' });
+    }
+
     await pool.query(
-      'INSERT INTO certifications (user_id, file_path, status) VALUES (?, ?, ?)',
-      [req.user.id, req.file.filename, 'pending']
+      'INSERT INTO certifications (user_id, property_id, file_path, status) VALUES (?, ?, ?, ?)',
+      [req.user.id, property_id, req.file.filename, 'pending']
     );
     res.json({ message: '인증 서류가 제출되었습니다. 관리자 검토 후 리뷰 작성이 가능합니다.' });
   } catch (err) {
@@ -102,17 +121,18 @@ router.get('/property/:propertyId', async (req, res) => {
   }
 });
 
-// 리뷰 작성
+// 리뷰 작성 (해당 매물 인증 확인)
 router.post('/', authMiddleware, reviewUpload.single('review_image'), async (req, res) => {
   const { property_id, noise, sunlight, water_pressure, management_fee, environment, content } = req.body;
   const image_path = req.file ? req.file.filename : null;
   try {
+    // 해당 매물에 대한 인증만 확인
     const [cert] = await pool.query(
-      'SELECT id FROM certifications WHERE user_id = ? AND status = ?',
-      [req.user.id, 'approved']
+      'SELECT id FROM certifications WHERE user_id = ? AND property_id = ? AND status = ?',
+      [req.user.id, property_id, 'approved']
     );
     if (cert.length === 0)
-      return res.status(403).json({ message: '계약서/영수증 인증 후 리뷰 작성이 가능합니다.' });
+      return res.status(403).json({ message: '해당 매물의 계약서/영수증 인증 후 리뷰 작성이 가능합니다.' });
 
     const [dup] = await pool.query(
       'SELECT id FROM reviews WHERE user_id = ? AND property_id = ?',

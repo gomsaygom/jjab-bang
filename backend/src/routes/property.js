@@ -3,18 +3,19 @@ const router = express.Router();
 const pool = require('../config/db');
 const { authMiddleware } = require('../middleware/auth');
 
-// 매물 목록 조회 (필터 + 지도용)
 router.get('/', async (req, res) => {
-  const { type, deal_type, min_price, max_price, district } = req.query;
+  const { type, deal_type, min_price, max_price, district, name, lawd_cd } = req.query;
   try {
     let query = 'SELECT * FROM properties WHERE 1=1';
     const params = [];
 
-    if (type) { query += ' AND type = ?'; params.push(type); }
-    if (deal_type) { query += ' AND deal_type = ?'; params.push(deal_type); }
-    if (district) { query += ' AND district LIKE ?'; params.push(`%${district}%`); }
-    if (min_price) { query += ' AND price >= ?'; params.push(min_price); }
-    if (max_price) { query += ' AND price <= ?'; params.push(max_price); }
+    if (type)      { query += ' AND type = ?';        params.push(type); }
+    if (deal_type) { query += ' AND deal_type = ?';   params.push(deal_type); }
+    if (district)  { query += ' AND district LIKE ?'; params.push(`%${district}%`); }
+    if (lawd_cd)   { query += ' AND lawd_cd = ?';     params.push(lawd_cd); }
+    if (min_price) { query += ' AND price >= ?';      params.push(min_price); }
+    if (max_price) { query += ' AND price <= ?';      params.push(max_price); }
+    if (name)      { query += ' AND name LIKE ?';     params.push(`%${name}%`); }
 
     const [rows] = await pool.query(query, params);
     res.json(rows);
@@ -23,7 +24,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 매물 상세 조회
 router.get('/:id', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM properties WHERE id = ?', [req.params.id]);
@@ -34,7 +34,6 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// 즐겨찾기 추가/제거
 router.post('/:id/favorite', authMiddleware, async (req, res) => {
   const userId = req.user.id;
   const propertyId = req.params.id;
@@ -54,7 +53,6 @@ router.post('/:id/favorite', authMiddleware, async (req, res) => {
   }
 });
 
-// 내 즐겨찾기 목록
 router.get('/my/favorites', authMiddleware, async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -69,14 +67,12 @@ router.get('/my/favorites', authMiddleware, async (req, res) => {
   }
 });
 
-// 전세가율 계산
 router.get('/:id/jeonse-rate', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM properties WHERE id = ?', [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ message: '매물을 찾을 수 없습니다.' });
 
     const property = rows[0];
-
     const [avgRows] = await pool.query(
       `SELECT AVG(price) as avg_sale FROM properties
        WHERE district = ? AND type = ? AND deal_type = '매매'`,
@@ -90,7 +86,6 @@ router.get('/:id/jeonse-rate', async (req, res) => {
 
     const rate = ((property.price / avgSalePrice) * 100).toFixed(1);
     const risk = rate >= 80 ? 'HIGH' : rate >= 60 ? 'MID' : 'LOW';
-
     res.json({ rate: parseFloat(rate), avg_sale: avgSalePrice, risk });
   } catch (err) {
     res.status(500).json({ message: '서버 오류' });

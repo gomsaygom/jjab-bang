@@ -1,14 +1,31 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import api from '../api/axios'
 import Header from '../components/Header'
 
 export default function Home() {
   const navigate = useNavigate()
+  const [query,    setQuery]    = useState('')
+  const [results,  setResults]  = useState([])
+  const [searched, setSearched] = useState(false)
+  const [loading,  setLoading]  = useState(false)
 
   const cards = [
     { icon:'📊', title:'실거래가 차트', desc:'국토교통부 공공데이터 기반 월별 추이', path:'/chart', color:'#3B82F6', bg:'#EFF6FF', border:'#BFDBFE' },
     { icon:'⭐', title:'익명 리뷰',    desc:'실거주자 인증 후 작성하는 솔직한 리뷰', path:'/map',   color:'#F59E0B', bg:'#FFFBEB', border:'#FDE68A' },
     { icon:'🛡️', title:'전세사기 예방', desc:'전세가율 계산 + 예방 체크리스트',       path:'/jeonse', color:'#10B981', bg:'#ECFDF5', border:'#A7F3D0' },
   ]
+
+  const handleSearch = async () => {
+    if (!query.trim()) return
+    setLoading(true)
+    try {
+      const res = await api.get('/properties', { params: { name: query.trim() } })
+      setResults(res.data.slice(0, 10))
+      setSearched(true)
+    } catch (e) { console.error(e) }
+    finally { setLoading(false) }
+  }
 
   return (
     <div style={{ minHeight:'100vh', background:'#F8FAFC' }}>
@@ -24,8 +41,6 @@ export default function Home() {
       }}>
         <div style={{ position:'absolute', top:-80, right:-80, width:360, height:360, borderRadius:'50%', background:'rgba(59,130,246,0.07)' }}/>
         <div style={{ position:'absolute', bottom:-100, left:-100, width:480, height:480, borderRadius:'50%', background:'rgba(59,130,246,0.04)' }}/>
-        <div style={{ position:'absolute', top:'30%', left:'10%', width:8, height:8, borderRadius:'50%', background:'rgba(96,165,250,0.4)' }}/>
-        <div style={{ position:'absolute', top:'20%', right:'15%', width:5, height:5, borderRadius:'50%', background:'rgba(96,165,250,0.3)' }}/>
 
         <div style={{ position:'relative', maxWidth:640, margin:'0 auto' }}>
           <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:'rgba(59,130,246,0.12)', border:'1px solid rgba(59,130,246,0.25)', borderRadius:24, padding:'6px 16px', marginBottom:24 }}>
@@ -40,10 +55,51 @@ export default function Home() {
             </span>부터 확인하세요
           </h1>
 
-          <p style={{ color:'#94A3B8', fontSize:'clamp(14px,2.5vw,17px)', marginBottom:40, lineHeight:1.8 }}>
+          <p style={{ color:'#94A3B8', fontSize:'clamp(14px,2.5vw,17px)', marginBottom:36, lineHeight:1.8 }}>
             선배들의 솔직한 리뷰, 국토교통부 실거래가,<br/>
             전세사기 예방까지 한 곳에서
           </p>
+
+          {/* 검색창 */}
+          <div style={{ position:'relative', maxWidth:500, margin:'0 auto 24px' }}>
+            <div style={{ display:'flex', background:'rgba(255,255,255,0.95)', borderRadius:14, overflow:'hidden', boxShadow:'0 8px 32px rgba(0,0,0,0.2)' }}>
+              <input
+                value={query}
+                onChange={e => { setQuery(e.target.value); if(!e.target.value) setSearched(false) }}
+                onKeyDown={e => e.key==='Enter' && handleSearch()}
+                placeholder="건물명으로 검색 (예: 강남 지웰홈스)"
+                style={{ flex:1, padding:'14px 18px', border:'none', outline:'none', fontSize:14, background:'transparent', color:'#1E293B' }}
+              />
+              <button onClick={handleSearch}
+                style={{ padding:'14px 20px', background:'#3B82F6', color:'#fff', border:'none', cursor:'pointer', fontSize:14, fontWeight:700 }}>
+                {loading ? '...' : '검색'}
+              </button>
+            </div>
+
+            {/* 검색 결과 드롭다운 */}
+            {searched && (
+              <div style={{ position:'absolute', top:'calc(100% + 8px)', left:0, right:0, background:'#fff', borderRadius:12, boxShadow:'0 8px 32px rgba(0,0,0,0.15)', border:'1px solid #E2E8F0', zIndex:200, maxHeight:280, overflowY:'auto' }}>
+                {results.length === 0 ? (
+                  <div style={{ padding:'20px', textAlign:'center', color:'#94A3B8', fontSize:14 }}>검색 결과가 없습니다.</div>
+                ) : (
+                  results.map(p => (
+                    <div key={p.id} onClick={() => navigate(`/property/${p.id}`)}
+                      style={{ padding:'12px 16px', cursor:'pointer', borderBottom:'1px solid #F1F5F9', display:'flex', justifyContent:'space-between', alignItems:'center' }}
+                      onMouseEnter={e => e.currentTarget.style.background='#F8FAFC'}
+                      onMouseLeave={e => e.currentTarget.style.background='#fff'}>
+                      <div>
+                        <p style={{ margin:'0 0 2px', fontSize:14, fontWeight:600, color:'#1E293B' }}>{p.name}</p>
+                        <p style={{ margin:0, fontSize:12, color:'#64748B' }}>📍 {p.district} · {p.type}</p>
+                      </div>
+                      <span style={{ fontSize:14, fontWeight:700, color:'#3B82F6' }}>
+                        {p.price ? (p.price/10000).toFixed(1)+'억' : '-'}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
 
           <div style={{ display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap' }}>
             <button onClick={() => navigate('/map')}
@@ -68,30 +124,23 @@ export default function Home() {
           <p style={{ color:'#94A3B8', fontSize:12, fontWeight:700, letterSpacing:3, marginBottom:8, textTransform:'uppercase' }}>주요 기능</p>
           <h2 style={{ color:'#1E293B', fontSize:'clamp(20px,3vw,26px)', fontWeight:800, margin:0 }}>필요한 정보를 한눈에</h2>
         </div>
-
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:20 }}>
           {cards.map(c => (
             <div key={c.title} onClick={() => navigate(c.path)}
               style={{ background:'#fff', borderRadius:20, padding:'28px', cursor:'pointer', border:`1px solid ${c.border}`, boxShadow:'0 2px 8px rgba(0,0,0,0.05)', transition:'all 0.2s' }}
-              onMouseEnter={e => { e.currentTarget.style.transform='translateY(-6px)'; e.currentTarget.style.boxShadow=`0 16px 40px rgba(0,0,0,0.1)` }}
-              onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)' }}
-            >
-              <div style={{ width:52, height:52, borderRadius:14, background:c.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, marginBottom:18 }}>
-                {c.icon}
-              </div>
+              onMouseEnter={e => { e.currentTarget.style.transform='translateY(-6px)'; e.currentTarget.style.boxShadow='0 16px 40px rgba(0,0,0,0.1)' }}
+              onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)' }}>
+              <div style={{ width:52, height:52, borderRadius:14, background:c.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, marginBottom:18 }}>{c.icon}</div>
               <h3 style={{ margin:'0 0 8px', fontSize:17, fontWeight:700, color:'#1E293B' }}>{c.title}</h3>
               <p style={{ color:'#64748B', fontSize:14, margin:'0 0 20px', lineHeight:1.65 }}>{c.desc}</p>
-              <div style={{ display:'flex', alignItems:'center', gap:4, color:c.color, fontSize:13, fontWeight:700 }}>
-                바로가기
-                <span style={{ fontSize:16 }}>→</span>
-              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:4, color:c.color, fontSize:13, fontWeight:700 }}>바로가기 <span style={{ fontSize:16 }}>→</span></div>
             </div>
           ))}
         </div>
       </div>
 
       {/* 통계 */}
-      <div style={{ maxWidth:960, margin:'0 auto 0', padding:'0 20px 56px' }}>
+      <div style={{ maxWidth:960, margin:'0 auto', padding:'0 20px 56px' }}>
         <div style={{ background:'linear-gradient(135deg,#1E293B,#0F172A)', borderRadius:24, padding:'40px 32px', display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:24, textAlign:'center' }}>
           {[
             { num:'1,216+', label:'등록 매물', icon:'🏠' },
