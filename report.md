@@ -152,9 +152,9 @@ sequenceDiagram
 
     Note over U,D: 인증 서류 제출 
     U->>F: 리뷰 작성 버튼 클릭
-    F-->>U: 인증 폼 표시 (certStatus가 null)
+    F-->>U: 인증 폼 표시 
     U->>F: 계약서/영수증 파일 선택 후 제출
-    F->>B: POST /reviews/certify (multipart/form-data)
+    F->>B: POST /reviews/certify 호출
     Note over F,B: cert_file, property_id 포함
     B->>B: authMiddleware JWT 검증
     alt 인증 토큰 유효하지 않음
@@ -167,11 +167,11 @@ sequenceDiagram
         F-->>U: 오류 알림
     end
     B->>D: SELECT id, status FROM certifications WHERE user_id = ? AND property_id = ?
-    D-->>B: 기존 인증 내역
-    alt 이미 pending 상태
+    D-->>B: 퀴리 결과 반환
+    alt pending 상태
         B-->>F: 409 Conflict
         F-->>U: '이미 인증 서류를 제출했습니다' 메시지 표시
-    else 이미 approved 상태
+    else approved 상태
         B-->>F: 409 Conflict
         F-->>U: 이미 인증된 매물입니다 알림
     else 신규 제출 가능
@@ -193,23 +193,22 @@ sequenceDiagram
     participant D as DB(Railway)
 
     Note over U,D: 리뷰 작성 
-    Note over U,F: 전제 - certStatus === approved
     U->>F: 별점 입력, 내용 작성, 사진 첨부(선택) 후 등록
-    F->>B: POST /reviews (multipart/form-data)
+    F->>B: POST /reviews 호출
     B->>B: authMiddleware JWT 검증
     alt 인증 토큰 유효하지 않음
         B-->>F: 401 Unauthorized
         F-->>U: 로그인 페이지로 이동
     end
     B->>D: SELECT id FROM certifications WHERE user_id = ? AND property_id = ? AND status = approved
-    D-->>B: 인증 내역
+    D-->>B: 쿼리 결과 반환
     alt 해당 매물 인증 없음
         B-->>F: 403 Forbidden
         F-->>U: '인증 후 리뷰 작성 가능합니다' 메시지 표시
     else 인증됨
         B->>D: SELECT id FROM reviews WHERE user_id = ? AND property_id = ?
         D-->>B: 쿼리 결과 반환
-        alt 이미 리뷰 작성함
+        alt 리뷰 작성함
             B-->>F: 409 Conflict
             F-->>U: '이미 리뷰를 작성한 매물입니다' 알림
         else 리뷰 작성 가능
@@ -219,7 +218,7 @@ sequenceDiagram
             B->>D: INSERT INTO reviews (user_id, property_id, 별점항목들, content, image_path)
             D-->>B: 쿼리 결과 반환
             B-->>F: 201 Created
-            F->>B: GET /reviews/property/:id (리뷰 목록 갱신)
+            F->>B: GET /reviews/property/:id 호출 
             B-->>F: 최신 리뷰 배열
             F-->>U: 리뷰가 등록되었습니다 알림 + 화면 갱신
         end
@@ -247,4 +246,44 @@ Note over U, D: 관리자 대시보드 조회 및 제어 (/api/admin)
         F-->>U: 관리자 화면 렌더링
     end
 
+```
+
+## 시스템 아키텍처
+```mermaid
+graph TD
+    %% 사용자 계층
+    U[사용자 브라우저]
+
+    %% 프론트엔드 계층
+    subgraph Frontend [React App]
+        P[Pages: Home, Map, Chart, JeonseCalc]
+        A[API Client: Axios]
+        C[Context: AuthContext]
+    end
+
+    %% 백엔드 계층
+    subgraph Backend [Node.js Express Server]
+        Auth[Auth Routes: 인증/이메일]
+        Prop[Property Routes: 매물/전세가율]
+        Pub[PublicData Routes: 실거래가]
+        Admin[Admin Routes: 관리자]
+        MW[Middleware: Auth/Admin]
+    end
+
+    %% 데이터 계층
+    subgraph Data [Data Layer]
+        DB[(Railway DB: mySql)]
+        Ext[공공데이터 API]
+    end
+
+    %% 관계 연결
+    U <--> P
+    P <--> A
+    A <--> MW
+    MW <--> Auth
+    MW <--> Prop
+    MW <--> Pub
+    MW <--> Admin
+    Auth & Prop & Pub & Admin <--> DB
+    Pub <--> Ext
 ```
