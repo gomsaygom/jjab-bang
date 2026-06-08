@@ -176,7 +176,7 @@ sequenceDiagram
         F-->>U: 이미 인증된 매물입니다 알림
     else 신규 제출 가능
         B->>D: INSERT INTO certifications (user_id, property_id, file_path, status=pending)
-        D-->>B: 저장 완료
+        D-->>B: 쿼리 결과 반환
         B-->>F: 200 OK
         F->>B: GET /reviews/cert-status?property_id=id (상태 갱신)
         B-->>F: status pending
@@ -208,7 +208,7 @@ sequenceDiagram
         F-->>U: '인증 후 리뷰 작성 가능합니다' 메시지 표시
     else 인증됨
         B->>D: SELECT id FROM reviews WHERE user_id = ? AND property_id = ?
-        D-->>B: 기존 리뷰 여부
+        D-->>B: 쿼리 결과 반환
         alt 이미 리뷰 작성함
             B-->>F: 409 Conflict
             F-->>U: '이미 리뷰를 작성한 매물입니다' 알림
@@ -217,7 +217,7 @@ sequenceDiagram
                 B->>B: multer 파일 저장 uploads/review_timestamp.jpg
             end
             B->>D: INSERT INTO reviews (user_id, property_id, 별점항목들, content, image_path)
-            D-->>B: 저장 완료
+            D-->>B: 쿼리 결과 반환
             B-->>F: 201 Created
             F->>B: GET /reviews/property/:id (리뷰 목록 갱신)
             B-->>F: 최신 리뷰 배열
@@ -242,7 +242,7 @@ Note over U, D: 관리자 대시보드 조회 및 제어 (/api/admin)
         B-->>F: 403 Forbidden
     else 권한 확인
         B->>D: SELECT 전체 사용자, 매물, 통계 데이터 등
-        D-->>B: 통계 결과 반환
+        D-->>B: 쿼리 결과 반환
         B-->>F: 200 OK (대시보드 종합 데이터)
         F-->>U: 관리자 화면 렌더링
     end
